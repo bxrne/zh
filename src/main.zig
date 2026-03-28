@@ -1,6 +1,11 @@
 const std = @import("std");
 const repl = @import("repl.zig");
 
+test {
+    _ = @import("zhrc.zig");
+    _ = @import("prompt.zig");
+}
+
 pub fn main() !void {
     var stdout_buf: [256]u8 = undefined;
     var stdout_writer = std.fs.File.stdout().writer(&stdout_buf);

@@ -3,15 +3,15 @@ const builtin = @import("builtin");
 const api = @import("../api.zig");
 const command_line = @import("../../command_line.zig");
 
-fn copyHome(allocator: std.mem.Allocator) ![]const u8 {
-    const home = std.posix.getenv("HOME") orelse return error.NoHome;
+fn copyHome(ctx: *api.Context, allocator: std.mem.Allocator) ![]const u8 {
+    const home = ctx.state.env.get("HOME") orelse std.posix.getenv("HOME") orelse return error.NoHome;
     return try allocator.dupe(u8, home);
 }
 
-fn expandTilde(allocator: std.mem.Allocator, arg: []const u8) ![]const u8 {
-    if (arg.len == 1) return try copyHome(allocator);
+fn expandTilde(ctx: *api.Context, allocator: std.mem.Allocator, arg: []const u8) ![]const u8 {
+    if (arg.len == 1) return try copyHome(ctx, allocator);
     if (arg[1] == '/') {
-        const home = std.posix.getenv("HOME") orelse return error.NoHome;
+        const home = ctx.state.env.get("HOME") orelse std.posix.getenv("HOME") orelse return error.NoHome;
         if (arg.len == 2) return try allocator.dupe(u8, home);
         return try std.fs.path.join(allocator, &.{ home, arg[2..] });
     }
@@ -32,18 +32,18 @@ fn expandTilde(allocator: std.mem.Allocator, arg: []const u8) ![]const u8 {
     return try allocator.dupe(u8, home_dir);
 }
 
-fn resolveTarget(allocator: std.mem.Allocator, args: []const command_line.Argument) ![]const u8 {
-    if (args.len == 0) return try copyHome(allocator);
+fn resolveTarget(ctx: *api.Context, allocator: std.mem.Allocator, args: []const command_line.Argument) ![]const u8 {
+    if (args.len == 0) return try copyHome(ctx, allocator);
     const arg = args[0];
     if (arg.tilde_expand and std.mem.startsWith(u8, arg.text, "~")) {
-        return try expandTilde(allocator, arg.text);
+        return try expandTilde(ctx, allocator, arg.text);
     }
     return try allocator.dupe(u8, arg.text);
 }
 
-pub fn execute(ctx: *const api.Context, stdout: *std.Io.Writer, stderr: *std.Io.Writer, args: []const command_line.Argument) !void {
+pub fn execute(ctx: *api.Context, stdout: *std.Io.Writer, stderr: *std.Io.Writer, args: []const command_line.Argument) !void {
     _ = stdout;
-    const target = resolveTarget(ctx.allocator, args) catch {
+    const target = resolveTarget(ctx, ctx.allocator, args) catch {
         try stderr.print("cd: home directory not available\n", .{});
         try stderr.flush();
         return;

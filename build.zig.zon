@@ -8,5 +8,7 @@
         "build.zig.zon",
         "src",
         "README.md",
+        "ZHRC.md",
+        "examples",
     },
 }

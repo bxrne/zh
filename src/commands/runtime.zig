@@ -1,11 +1,10 @@
 const std = @import("std");
-const builtin = @import("builtin");
 const api = @import("api.zig");
 const command_line = @import("../command_line.zig");
 const redirection = @import("redirection.zig");
 
 pub fn executeParsed(
-    ctx: *const api.Context,
+    ctx: *api.Context,
     terminal_stdout: *std.Io.Writer,
     terminal_stderr: *std.Io.Writer,
     parsed: *const command_line.CommandLine,
@@ -41,7 +40,19 @@ pub fn executeParsed(
     try builtin_io.stderr().flush();
 }
 
-pub fn describeCommand(ctx: *const api.Context, writer: *std.Io.Writer, name: []const u8) !void {
+/// Parse a single command line and execute it (used by eval and zhrc).
+pub fn executeLine(
+    ctx: *api.Context,
+    terminal_stdout: *std.Io.Writer,
+    terminal_stderr: *std.Io.Writer,
+    line: []const u8,
+) !void {
+    var parsed = try command_line.parse(ctx.allocator, line);
+    defer parsed.deinit(ctx.allocator);
+    try executeParsed(ctx, terminal_stdout, terminal_stderr, &parsed);
+}
+
+pub fn describeCommand(ctx: *api.Context, writer: *std.Io.Writer, name: []const u8) !void {
     if (ctx.resolve_builtin(name) != null) {
         try writer.print("{s} is a shell builtin\n", .{name});
         return;
@@ -51,7 +62,7 @@ pub fn describeCommand(ctx: *const api.Context, writer: *std.Io.Writer, name: []
         if (std.mem.indexOfScalar(u8, name, '/')) |_| {
             try writer.print("{s} is {s}\n", .{ name, name });
         } else {
-            try writer.print("{s} is {s}\n", .{ name, ctx.path_index.lookup(name).? });
+            try writer.print("{s} is {s}\n", .{ name, ctx.state.path_index.lookup(name).? });
         }
         return;
     }
@@ -59,22 +70,17 @@ pub fn describeCommand(ctx: *const api.Context, writer: *std.Io.Writer, name: []
     try writer.print("{s}: not found\n", .{name});
 }
 
-pub fn isExecutable(ctx: *const api.Context, name: []const u8) bool {
+pub fn isExecutable(ctx: *api.Context, name: []const u8) bool {
     if (std.mem.indexOfScalar(u8, name, '/')) |_| {
         std.posix.access(name, std.posix.X_OK) catch return false;
         return true;
     }
 
-    return ctx.path_index.lookup(name) != null;
-}
-
-fn environmentPointer() [*:null]const ?[*:0]const u8 {
-    if (builtin.link_libc) return std.c.environ;
-    return @ptrCast(std.os.environ.ptr);
+    return ctx.state.path_index.lookup(name) != null;
 }
 
 fn runExternalCommand(
-    ctx: *const api.Context,
+    ctx: *api.Context,
     command_name: []const u8,
     command_args: []const command_line.Argument,
     redirections: command_line.Redirections,
@@ -101,7 +107,7 @@ fn runExternalCommand(
     var arena = std.heap.ArenaAllocator.init(ctx.allocator);
     defer arena.deinit();
 
-    const envp_slice = try std.process.createEnvironFromExisting(arena.allocator(), environmentPointer(), .{ .zig_progress_fd = -1 });
+    const envp_slice = try std.process.createEnvironFromMap(arena.allocator(), &ctx.state.env, .{});
     const pid = try std.posix.fork();
     if (pid == 0) {
         redirection.applyToChild(redirections) catch std.posix.exit(127);
@@ -118,7 +124,7 @@ fn tempPath(allocator: std.mem.Allocator, tmp_dir: *std.testing.TmpDir, name: []
 }
 
 fn testBuiltin(
-    ctx: *const api.Context,
+    ctx: *api.Context,
     stdout: *std.Io.Writer,
     stderr: *std.Io.Writer,
     args: []const command_line.Argument,
@@ -159,12 +165,12 @@ test "executeParsed redirects builtin stdout to files" {
     var parsed = try command_line.parse(allocator, input);
     defer parsed.deinit(allocator);
 
-    var path_index = try api.PathIndex.init(allocator, "");
-    defer path_index.deinit();
+    var shell_state = try api.ShellState.init(allocator);
+    defer shell_state.deinit();
 
-    const ctx = api.Context{
+    var ctx = api.Context{
         .resolve_builtin = resolveTestBuiltin,
-        .path_index = &path_index,
+        .state = &shell_state,
         .allocator = allocator,
     };
 
@@ -202,12 +208,12 @@ test "executeParsed redirects shell diagnostics to stderr files" {
     var parsed = try command_line.parse(allocator, input);
     defer parsed.deinit(allocator);
 
-    var path_index = try api.PathIndex.init(allocator, "");
-    defer path_index.deinit();
+    var shell_state = try api.ShellState.init(allocator);
+    defer shell_state.deinit();
 
-    const ctx = api.Context{
+    var ctx = api.Context{
         .resolve_builtin = resolveNoBuiltins,
-        .path_index = &path_index,
+        .state = &shell_state,
         .allocator = allocator,
     };
 

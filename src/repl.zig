@@ -1,10 +1,16 @@
 const std = @import("std");
 const command_line = @import("command_line.zig");
 const commands = @import("commands/mod.zig");
+const prompt = @import("prompt.zig");
+const zhrc = @import("zhrc.zig");
 
-pub fn readCommandLine(writer: *std.Io.Writer, reader: *std.Io.Reader) !?[]const u8 {
-    try writer.print("$ ", .{});
-    try writer.flush();
+pub fn readCommandLine(
+    allocator: std.mem.Allocator,
+    writer: *std.Io.Writer,
+    reader: *std.Io.Reader,
+    state: *const commands.ShellState,
+) !?[]const u8 {
+    try prompt.writePrompt(writer, allocator, &state.env);
 
     const line = reader.takeDelimiterInclusive('\n') catch |err| {
         if (err == error.EndOfStream) return null;
@@ -35,17 +41,23 @@ pub fn run(term_out: *std.Io.Writer, term_err: *std.Io.Writer, reader: *std.Io.R
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    var path_index = try commands.PathIndex.init(allocator, null);
-    defer path_index.deinit();
+    var shell_state = try commands.ShellState.init(allocator);
+    defer shell_state.deinit();
 
-    const shell_ctx = commands.Context{
+    var shell_ctx = commands.Context{
         .resolve_builtin = commands.findBuiltin,
-        .path_index = &path_index,
+        .state = &shell_state,
         .allocator = allocator,
     };
 
+    if (shell_state.env.get("HOME")) |home| {
+        const zhrc_path = try std.fs.path.join(allocator, &.{ home, ".zhrc" });
+        defer allocator.free(zhrc_path);
+        try zhrc.loadFromPath(&shell_ctx, term_out, term_err, zhrc_path);
+    }
+
     while (true) {
-        const line = try readCommandLine(term_out, reader);
+        const line = try readCommandLine(allocator, term_out, reader, &shell_state);
         if (line == null) break;
         if (line.?.len == 0) continue;
 

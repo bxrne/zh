@@ -1,5 +1,9 @@
 pub const cd = @import("cd.zig");
+pub const colon = @import("colon.zig");
 pub const echo = @import("echo.zig");
+pub const eval_builtin = @import("eval.zig");
 pub const exit = @import("exit.zig");
+pub const export_builtin = @import("export.zig");
 pub const pwd = @import("pwd.zig");
 pub const type_builtin = @import("type.zig");
+pub const unset = @import("unset.zig");

@@ -1,0 +1,10 @@
+# Sample ~/.zhrc for zh — full documentation: ZHRC.md (repo root)
+# Install: cp examples/zhrc.sample ~/.zhrc
+
+# Ensure common locations are on PATH (adjust for your OS)
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/bin
+
+# Prompt: user @ host : cwd (with ~)  (git-branch)  $ 
+# Requires git(1) in PATH for branch segment; see ZHRC.md for all escapes.
+# The value ends with a space after \$ so the cursor is separated from the sigil.
+export ZH_PROMPT=\u@\h:\w \g\$ 

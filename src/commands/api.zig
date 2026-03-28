@@ -1,8 +1,44 @@
 const std = @import("std");
 const command_line = @import("../command_line.zig");
 
+pub const max_eval_depth = 32;
+
+pub const ShellState = struct {
+    env: std.process.EnvMap,
+    path_index: PathIndex,
+    eval_depth: u8,
+    allocator: std.mem.Allocator,
+
+    pub fn init(allocator: std.mem.Allocator) !ShellState {
+        var env = try std.process.getEnvMap(allocator);
+        errdefer env.deinit();
+
+        const path_slice = env.get("PATH") orelse "";
+        var path_index = try PathIndex.init(allocator, path_slice);
+        errdefer path_index.deinit();
+
+        return .{
+            .env = env,
+            .path_index = path_index,
+            .eval_depth = 0,
+            .allocator = allocator,
+        };
+    }
+
+    pub fn deinit(self: *ShellState) void {
+        self.path_index.deinit();
+        self.env.deinit();
+    }
+
+    pub fn refreshPathIndex(self: *ShellState) !void {
+        self.path_index.deinit();
+        const path_slice = self.env.get("PATH") orelse "";
+        self.path_index = try PathIndex.init(self.allocator, path_slice);
+    }
+};
+
 pub const BuiltinFn = *const fn (
-    ctx: *const Context,
+    ctx: *Context,
     stdout: *std.Io.Writer,
     stderr: *std.Io.Writer,
     args: []const command_line.Argument,
@@ -10,7 +46,7 @@ pub const BuiltinFn = *const fn (
 
 pub const Context = struct {
     resolve_builtin: *const fn (name: []const u8) ?BuiltinFn,
-    path_index: *const PathIndex,
+    state: *ShellState,
     allocator: std.mem.Allocator,
 };
 
