@@ -37,6 +37,32 @@ zig build
 zig build run
 ```
 
+## Installing
+
+```bash
+zig build
+./zig-out/bin/zh
+```
+
+### Making zh Your Default Shell
+
+1. **Find the full path to zh**:
+   ```bash
+   which zh  # or use full path: /path/to/zh
+   ```
+
+2. **Add zh to /etc/shells** (if not already present):
+   ```bash
+   echo /path/to/zh | sudo tee -a /etc/shells
+   ```
+
+3. **Change your default shell**:
+   ```bash
+   chsh -s /path/to/zh
+   ```
+
+4. **Log out and log back in** for changes to take effect.
+
 ## Builtins
 
 | Command | Description |
