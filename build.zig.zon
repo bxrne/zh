@@ -1,0 +1,12 @@
+.{
+    .name = .zh,
+    .fingerprint = 0xd7606ae9890e73f2,
+    .version = "0.0.0",
+    .minimum_zig_version = "0.15.1",
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "README.md",
+    },
+}
